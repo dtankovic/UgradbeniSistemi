@@ -1,42 +1,35 @@
 package etf.ri.us.garazaapp
 
+import android.content.Intent
 import android.os.Bundle
 import android.widget.Button
-import android.widget.Toast
 import androidx.activity.ComponentActivity
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
-
-    private val mqttHelper = MqttHelper()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        lifecycleScope.launch {
-            mqttHelper.connect {
-                Toast.makeText(this@MainActivity, "MQTT povezan", Toast.LENGTH_SHORT).show()
-            }
-        }
+        // 1) Startaj MqttService
+        startService(Intent(this, MqttService::class.java))
 
+        // 2) Dugmad šalju intent u servis s ACTION_PUBLISH
         findViewById<Button>(R.id.btnOpen).setOnClickListener {
-            lifecycleScope.launch {
-                mqttHelper.publish("open")
+            Intent(this, MqttService::class.java).also { intent ->
+                intent.action = MqttService.ACTION_PUBLISH
+                intent.putExtra(MqttService.EXTRA_TOPIC, "garaza/vrata")
+                intent.putExtra(MqttService.EXTRA_MESSAGE, "open")
+                startService(intent)
             }
         }
 
         findViewById<Button>(R.id.btnClose).setOnClickListener {
-            lifecycleScope.launch {
-                mqttHelper.publish("close")
-            }
-        }
-
-        findViewById<Button>(R.id.btnAlarmOff).setOnClickListener {
-            lifecycleScope.launch {
-                mqttHelper.publish("alarm_off")
-                Toast.makeText(this@MainActivity, "Alarm ugašen", Toast.LENGTH_SHORT).show()
+            Intent(this, MqttService::class.java).also { intent ->
+                intent.action = MqttService.ACTION_PUBLISH
+                intent.putExtra(MqttService.EXTRA_TOPIC, "garaza/vrata")
+                intent.putExtra(MqttService.EXTRA_MESSAGE, "close")
+                startService(intent)
             }
         }
     }

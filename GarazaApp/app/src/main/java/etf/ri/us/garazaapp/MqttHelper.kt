@@ -1,3 +1,4 @@
+// MqttHelper.kt
 package etf.ri.us.garazaapp
 
 import android.util.Log
@@ -5,8 +6,14 @@ import com.hivemq.client.mqtt.MqttClient
 import com.hivemq.client.mqtt.datatypes.MqttQos
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.future.await
+import java.nio.ByteBuffer
 
 class MqttHelper {
+
+    companion object {
+        private const val TAG = "MqttHelper"
+    }
 
     private val client = MqttClient.builder()
         .useMqttVersion3()
@@ -14,33 +21,58 @@ class MqttHelper {
         .serverHost("broker.hivemq.com")
         .serverPort(1883)
         .automaticReconnectWithDefaultConfig()
-        .buildBlocking()
+        .buildAsync()
 
-    private val topic = "garaza/vrata"
-
-    suspend fun connect(onConnected: () -> Unit = {}) {
+    suspend fun connect() {
         withContext(Dispatchers.IO) {
             try {
-                client.connect()
-                Log.d("MQTT", "Povezano na HiveMQ broker")
-                withContext(Dispatchers.Main) { onConnected() }
+                Log.d(TAG, "Pokušavam se spojiti…")
+                client.connect().await()
+                Log.d(TAG, "CONNECT OK")
             } catch (e: Exception) {
-                Log.e("MQTT", "Greška pri povezivanju", e)
+                Log.e(TAG, "CONNECT ERROR", e)
             }
         }
     }
 
-    suspend fun publish(message: String) {
+    suspend fun subscribe(topic: String, onMessage: (String) -> Unit) {
         withContext(Dispatchers.IO) {
             try {
+                Log.d(TAG, "Pretplaćujem se na topic '$topic'…")
+                client.subscribeWith()
+                    .topicFilter(topic)
+                    .qos(MqttQos.AT_LEAST_ONCE)
+                    .callback { publish ->
+                        // copy read-only buffer into a byte array
+                        val buf: ByteBuffer = publish.payload.get().duplicate()
+                        val bytes = ByteArray(buf.remaining()).also { buf.get(it) }
+                        val msg = String(bytes, Charsets.UTF_8)
+
+                        Log.d(TAG, "<<< MESSAGE on '$topic': $msg")
+                        onMessage(msg)
+                    }
+                    .send()
+                    .await()
+                Log.d(TAG, "SUBSCRIBE OK")
+            } catch (e: Exception) {
+                Log.e(TAG, "SUBSCRIBE ERROR", e)
+            }
+        }
+    }
+
+    suspend fun publish(topic: String, message: String) {
+        withContext(Dispatchers.IO) {
+            try {
+                Log.d(TAG, "Publishing to '$topic': $message")
                 client.publishWith()
                     .topic(topic)
                     .qos(MqttQos.AT_LEAST_ONCE)
                     .payload(message.toByteArray())
                     .send()
-                Log.d("MQTT", "Poruka poslata: $message")
+                    .await()
+                Log.d(TAG, "PUBLISH OK")
             } catch (e: Exception) {
-                Log.e("MQTT", "Greška pri slanju", e)
+                Log.e(TAG, "PUBLISH ERROR", e)
             }
         }
     }
