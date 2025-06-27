@@ -61,5 +61,12 @@
             app:backgroundTint="#FFA726"
             android:textColor="#FFFFFF" />
 
+        <Button
+            android:id="@+id/btnHistory"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Historija korištenja" />
+
+
     </LinearLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>

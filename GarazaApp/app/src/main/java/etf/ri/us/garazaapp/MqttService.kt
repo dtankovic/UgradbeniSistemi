@@ -11,6 +11,8 @@ import com.hivemq.client.mqtt.MqttClient
 import com.hivemq.client.mqtt.datatypes.MqttQos
 import com.hivemq.client.mqtt.mqtt3.Mqtt3AsyncClient
 import com.hivemq.client.mqtt.mqtt3.message.publish.Mqtt3Publish
+import etf.ri.us.garazaapp.data.AuthUsers
+import etf.ri.us.garazaapp.model.UserEvent
 import kotlinx.coroutines.*
 import kotlinx.coroutines.future.await
 import java.nio.ByteBuffer
@@ -26,6 +28,7 @@ class MqttService : Service(), CoroutineScope {
         private const val CHANNEL_ID       = "mqtt_service_channel"
         private const val NOTIF_ID_FORE    = 1
         private const val NOTIF_ID_MESSAGE = 2
+        val history = mutableListOf<UserEvent>()
 
         /** Topic na kojem slušamo “alarm aktivan” */
         const val TOPIC_ACTIVE      = "garaza/alarm/aktivan"
@@ -99,6 +102,15 @@ class MqttService : Service(), CoroutineScope {
                 .send()
                 .await()
             Log.d(TAG, "Subscribed to $TOPIC_ACTIVE")
+
+            client.subscribeWith()
+                .topicFilter("garaza/vrata/user")
+                .qos(MqttQos.AT_LEAST_ONCE)
+                .callback(this::onUserMessage)
+                .send()
+                .await()
+            Log.d(TAG, "Subscribed to garaza/vrata/user")
+
         } catch (e: Exception) {
             Log.e(TAG, "MQTT error", e)
         }
@@ -187,6 +199,24 @@ class MqttService : Service(), CoroutineScope {
             try { client.disconnect().await() } catch (_: Exception) {}
         }
     }
+
+    private fun onUserMessage(pub: Mqtt3Publish) {
+        val buf: ByteBuffer = pub.payload.get().duplicate()
+        val bytes = ByteArray(buf.remaining()).also { buf.get(it) }
+        val rfid = String(bytes, Charsets.UTF_8).trim()
+
+        val user = AuthUsers.getUsers().find { it.rfid == rfid }
+        val event = if (user != null && !(user.ime == "none" && user.prezime == "none")) {
+            UserEvent(rfid, user.ime, user.prezime, viaPin = false)
+        } else {
+            UserEvent(rfid, "PIN", "", viaPin = true)
+        }
+
+        Log.d(TAG, "User event: $event")
+
+        history.add(0, event) // newest first
+    }
+
 
     override fun onBind(intent: Intent?): IBinder? = null
 }
