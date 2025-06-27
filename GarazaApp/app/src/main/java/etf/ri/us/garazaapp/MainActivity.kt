@@ -50,10 +50,20 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        findViewById<Button>(R.id.btnAlarmOff).setOnClickListener {
+            Intent(this, MqttService::class.java).also { intent ->
+                intent.action = MqttService.ACTION_PUBLISH
+                intent.putExtra(MqttService.EXTRA_TOPIC, MqttService.TOPIC_OFF)
+                intent.putExtra(MqttService.EXTRA_MESSAGE, "alarm_off")
+                startService(intent)
+            }
+        }
+
         // Button: History
         findViewById<Button>(R.id.btnHistory).setOnClickListener {
             startActivity(Intent(this, HistoryActivity::class.java))
         }
+
     }
 }
 
